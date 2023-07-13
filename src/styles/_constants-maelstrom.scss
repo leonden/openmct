@@ -541,6 +541,11 @@ $scrollContainer: $colorBodyBg;
   box-shadow: rgba(black, 0.5) 0 0.5px 2px;
 }
 
+@mixin telemetryView(){
+  border: 1px solid $colorBodyFg;
+  border-radius: $controlCr;
+}
+
 /**************************************************** OVERRIDES */
 .c-frame {
   &:not(.no-frame) {
