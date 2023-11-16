@@ -20,40 +20,32 @@
  * at runtime from the About dialog for additional information.
  *****************************************************************************/
 
-.c-timelist {
-  & .nowMarker.hasCurrent {
-    height: 2px;
-    position: absolute;
-    z-index: 10;
-    background: cyan;
-    width: 100%;
+export default function GaugeCompositionPolicy(openmct) {
+  function hasNumericTelemetry(domainObject) {
+    const hasTelemetry = openmct.telemetry.isTelemetryObject(domainObject);
+    if (!hasTelemetry) {
+      return false;
+    }
+
+    const metadata = openmct.telemetry.getMetadata(domainObject);
+
+    return metadata.values().length > 0 && hasDomainAndRange(metadata);
   }
 
-  .c-list-item {
-    /* Time Lists */
+  function hasDomainAndRange(metadata) {
+    return (
+      metadata.valuesForHints(['range']).length > 0 &&
+      metadata.valuesForHints(['domain']).length > 0
+    );
+  }
 
-    td {
-      $p: $interiorMarginSm;
-      padding-top: $p;
-      padding-bottom: $p;
-    }
-
-    &.--is-current {
-      background-color: $colorCurrentBg;
-      border-top: 1px solid $colorCurrentBorder !important;
-      color: $colorCurrentFg;
-    }
-
-    &.--is-future {
-      background-color: $colorFutureBg;
-      border-top-color: $colorFutureBorder !important;
-      color: $colorFutureFg;
-    }
-
-    &__value {
-      &.--duration {
-        width: 5%;
+  return {
+    allow: function (parent, child) {
+      if (parent.type === 'gauge') {
+        return hasNumericTelemetry(child);
       }
+
+      return true;
     }
-  }
+  };
 }
