@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Open MCT, Copyright (c) 2014-2023, United States Government
+ * Open MCT, Copyright (c) 2014-2024, United States Government
  * as represented by the Administrator of the National Aeronautics and Space
  * Administration. All rights reserved.
  *
@@ -25,15 +25,16 @@ import mount from 'utils/mount';
 import {
   createMouseEvent,
   createOpenMct,
+  renderWhenVisible,
   resetApplicationState,
   spyOnBuiltins
 } from 'utils/testing';
 import { nextTick, ref } from 'vue';
 
-import configStore from '../configuration/ConfigStore';
-import PlotConfigurationModel from '../configuration/PlotConfigurationModel';
+import configStore from '../configuration/ConfigStore.js';
+import PlotConfigurationModel from '../configuration/PlotConfigurationModel.js';
 import PlotOptions from '../inspector/PlotOptions.vue';
-import PlotVuePlugin from '../plugin';
+import PlotVuePlugin from '../plugin.js';
 import StackedPlot from './StackedPlot.vue';
 
 describe('the plugin', function () {
@@ -329,7 +330,8 @@ describe('the plugin', function () {
           provide: {
             openmct,
             domainObject: stackedPlotObject,
-            path: [stackedPlotObject]
+            path: [stackedPlotObject],
+            renderWhenVisible
           },
           template: '<stacked-plot ref="stackedPlotRef"></stacked-plot>'
         },
@@ -488,7 +490,7 @@ describe('the plugin', function () {
         max: 10
       });
       expect(
-        plotViewComponentObject.$refs.stackedPlotItems[0].component.$refs.plotComponent.$refs.mctPlot.xScale.domain()
+        plotViewComponentObject.$refs.stackedPlotItems[0].$refs.plotComponent.$refs.mctPlot.xScale.domain()
       ).toEqual({
         min: 0,
         max: 10
@@ -505,8 +507,7 @@ describe('the plugin', function () {
       });
 
       const yAxesScales =
-        plotViewComponentObject.$refs.stackedPlotItems[0].component.$refs.plotComponent.$refs
-          .mctPlot.yScale;
+        plotViewComponentObject.$refs.stackedPlotItems[0].$refs.plotComponent.$refs.mctPlot.yScale;
       yAxesScales.forEach((yAxisScale) => {
         expect(yAxisScale.scale.domain()).toEqual({
           min: 10,
@@ -521,7 +522,7 @@ describe('the plugin', function () {
       );
       let hasStyles = 0;
       conditionalStylesContainer.forEach((el) => {
-        if (el.style.backgroundColor !== '') {
+        if (el.style.backgroundColor) {
           hasStyles++;
         }
       });
@@ -619,7 +620,8 @@ describe('the plugin', function () {
           provide: {
             openmct: openmct,
             domainObject: selection[0][0].context.item,
-            path: [selection[0][0].context.item]
+            path: [selection[0][0].context.item],
+            renderWhenVisible
           },
           template: '<plot-options/>'
         },
@@ -774,7 +776,8 @@ describe('the plugin', function () {
           provide: {
             openmct: openmct,
             domainObject: selection[0][0].context.item,
-            path: [selection[0][0].context.item, selection[0][1].context.item]
+            path: [selection[0][0].context.item, selection[0][1].context.item],
+            renderWhenVisible
           },
           template: '<plot-options />'
         },

@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Open MCT, Copyright (c) 2014-2023, United States Government
+ * Open MCT, Copyright (c) 2014-2024, United States Government
  * as represented by the Administrator of the National Aeronautics and Space
  * Administration. All rights reserved.
  *
@@ -22,6 +22,7 @@
 import {
   createMouseEvent,
   createOpenMct,
+  renderWhenVisible,
   resetApplicationState,
   spyOnBuiltins
 } from 'utils/testing';
@@ -236,7 +237,7 @@ describe('the plugin', () => {
       applicableViews = openmct.objectViews.get(testTelemetryObject, []);
       tableViewProvider = applicableViews.find((viewProvider) => viewProvider.key === 'table');
       tableView = tableViewProvider.view(testTelemetryObject, [testTelemetryObject]);
-      tableView.show(child, true);
+      tableView.show(child, true, { renderWhenVisible });
 
       tableInstance = tableView.getTable();
 

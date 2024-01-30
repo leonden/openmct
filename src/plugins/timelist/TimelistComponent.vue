@@ -1,5 +1,5 @@
 <!--
- Open MCT, Copyright (c) 2014-2023, United States Government
+ Open MCT, Copyright (c) 2014-2024, United States Government
  as represented by the Administrator of the National Aeronautics and Space
  Administration. All rights reserved.
 
@@ -27,6 +27,7 @@
       :header-items="headerItems"
       :default-sort="defaultSort"
       class="sticky"
+      @item-selection-changed="setSelectionForActivity"
     />
   </div>
 </template>
@@ -35,11 +36,11 @@
 import _ from 'lodash';
 import { v4 as uuid } from 'uuid';
 
-import { TIME_CONTEXT_EVENTS } from '../../api/time/constants';
+import { TIME_CONTEXT_EVENTS } from '../../api/time/constants.js';
 import ListView from '../../ui/components/List/ListView.vue';
-import { getPreciseDuration } from '../../utils/duration';
-import { getValidatedData } from '../plan/util';
-import { SORT_ORDER_OPTIONS } from './constants';
+import { getPreciseDuration } from '../../utils/duration.js';
+import { getFilteredValues, getValidatedData, getValidatedGroups } from '../plan/util.js';
+import { SORT_ORDER_OPTIONS } from './constants.js';
 
 const SCROLL_TIMEOUT = 10000;
 
@@ -77,9 +78,12 @@ const headerItems = [
     format: function (value) {
       let result;
       if (value < 0) {
-        result = `+${getPreciseDuration(Math.abs(value), true)}`;
+        result = `+${getPreciseDuration(Math.abs(value), {
+          excludeMilliSeconds: true,
+          useDayFormat: true
+        })}`;
       } else if (value > 0) {
-        result = `-${getPreciseDuration(value, true)}`;
+        result = `-${getPreciseDuration(value, { excludeMilliSeconds: true, useDayFormat: true })}`;
       } else {
         result = 'Now';
       }
@@ -205,22 +209,22 @@ export default {
       this.setViewFromConfig(mutatedObject.configuration);
     },
     setViewFromConfig(configuration) {
+      this.filterValue = configuration.filter || '';
+      this.filterMetadataValue = configuration.filterMetadata || '';
       if (this.isEditing) {
-        this.filterValue = configuration.filter;
         this.hideAll = false;
-        this.listActivities();
       } else {
-        this.filterValue = configuration.filter;
         this.setSort();
-        this.listActivities();
       }
+      this.listActivities();
     },
     updateTimestamp(timestamp) {
       //The clock never stops ticking
       this.updateTimeStampAndListActivities(timestamp);
     },
     setFixedTime() {
-      this.filterValue = this.domainObject.configuration.filter;
+      this.filterValue = this.domainObject.configuration.filter || '';
+      this.filterMetadataValue = this.domainObject.configuration.filterMetadata || '';
       this.isFixedTime = !this.timeContext.isRealTime();
       if (this.isFixedTime) {
         this.hideAll = false;
@@ -283,10 +287,13 @@ export default {
       this.planData = getValidatedData(domainObject);
     },
     listActivities() {
-      let groups = Object.keys(this.planData);
+      let groups = getValidatedGroups(this.domainObject, this.planData);
       let activities = [];
 
       groups.forEach((key) => {
+        if (this.planData[key] === undefined) {
+          return;
+        }
         // Create new objects so Vue 3 can detect any changes
         activities = activities.concat(JSON.parse(JSON.stringify(this.planData[key])));
       });
@@ -320,7 +327,21 @@ export default {
         return true;
       }
 
-      const hasFilterMatch = this.filterByName(activity.name);
+      let hasNameMatch = false;
+      let hasMetadataMatch = false;
+      if (this.filterValue || this.filterMetadataValue) {
+        if (this.filterValue) {
+          hasNameMatch = this.filterByName(activity.name);
+        }
+        if (this.filterMetadataValue) {
+          hasMetadataMatch = this.filterByMetadata(activity);
+        }
+      } else {
+        hasNameMatch = true;
+        hasMetadataMatch = true;
+      }
+
+      const hasFilterMatch = hasNameMatch || hasMetadataMatch;
       if (hasFilterMatch === false || this.hideAll === true) {
         return false;
       }
@@ -348,45 +369,66 @@ export default {
         return regex.test(name.toLowerCase());
       });
     },
-    applyStyles(activities) {
-      let firstCurrentActivityIndex = -1;
-      let activityClosestToNowIndex = -1;
-      let currentActivitiesCount = 0;
-      const styledActivities = activities.map((activity, index) => {
-        if (this.timestamp >= activity.start && this.timestamp <= activity.end) {
-          activity.cssClass = CURRENT_CSS_SUFFIX;
-          if (firstCurrentActivityIndex < 0) {
-            firstCurrentActivityIndex = index;
-          }
+    filterByMetadata(activity) {
+      const filters = this.filterMetadataValue.split(',');
 
-          currentActivitiesCount = currentActivitiesCount + 1;
-        } else if (this.timestamp < activity.start) {
-          activity.cssClass = FUTURE_CSS_SUFFIX;
-          //the index of the first activity that's greater than the current timestamp
-          if (activityClosestToNowIndex < 0) {
-            activityClosestToNowIndex = index;
-          }
-        } else {
-          activity.cssClass = PAST_CSS_SUFFIX;
-        }
+      return filters.some((search) => {
+        const normalized = search.trim().toLowerCase();
+        const regex = new RegExp(normalized);
+        const activityValues = getFilteredValues(activity);
 
-        if (!activity.key) {
-          activity.key = uuid();
-        }
-
-        if (activity.start < this.timestamp) {
-          //if the activity start time has passed, display the time to the end of the activity
-          activity.duration = activity.end - this.timestamp;
-        } else {
-          activity.duration = activity.start - this.timestamp;
-        }
-
-        return activity;
+        return regex.test(activityValues.join().toLowerCase());
       });
+    },
+    // Add activity classes, increase activity counts by type,
+    // set indices of the first occurrences of current and future activities - used for scrolling
+    styleActivity(activity, index) {
+      if (this.timestamp >= activity.start && this.timestamp <= activity.end) {
+        activity.cssClass = CURRENT_CSS_SUFFIX;
+        if (this.firstCurrentActivityIndex < 0) {
+          this.firstCurrentActivityIndex = index;
+        }
+        this.currentActivitiesCount = this.currentActivitiesCount + 1;
+      } else if (this.timestamp < activity.start) {
+        activity.cssClass = FUTURE_CSS_SUFFIX;
+        //the index of the first activity that's greater than the current timestamp
+        if (this.firstFutureActivityIndex < 0) {
+          this.firstFutureActivityIndex = index;
+        }
+        this.futureActivitiesCount = this.futureActivitiesCount + 1;
+      } else {
+        activity.cssClass = PAST_CSS_SUFFIX;
+        this.pastActivitiesCount = this.pastActivitiesCount + 1;
+      }
 
-      this.activityClosestToNowIndex = activityClosestToNowIndex;
-      this.firstCurrentActivityIndex = firstCurrentActivityIndex;
-      this.currentActivitiesCount = currentActivitiesCount;
+      if (!activity.key) {
+        activity.key = uuid();
+      }
+
+      if (activity.start < this.timestamp) {
+        //if the activity start time has passed, display the time to the end of the activity
+        activity.duration = activity.end - this.timestamp;
+      } else {
+        activity.duration = activity.start - this.timestamp;
+      }
+
+      return activity;
+    },
+    applyStyles(activities) {
+      this.firstCurrentOrFutureActivityIndex = -1;
+      this.firstCurrentActivityIndex = -1;
+      this.firstFutureActivityIndex = -1;
+      this.currentActivitiesCount = 0;
+      this.pastActivitiesCount = 0;
+      this.futureActivitiesCount = 0;
+
+      const styledActivities = activities.map(this.styleActivity);
+
+      if (this.firstCurrentActivityIndex > -1) {
+        this.firstCurrentOrFutureActivityIndex = this.firstCurrentActivityIndex;
+      } else if (this.firstFutureActivityIndex > -1) {
+        this.firstCurrentOrFutureActivityIndex = this.firstFutureActivityIndex;
+      }
 
       return styledActivities;
     },
@@ -401,9 +443,10 @@ export default {
         return;
       }
 
-      this.firstCurrentActivityIndex = -1;
-      this.activityClosestToNowIndex = -1;
+      this.firstCurrentOrFutureActivityIndex = -1;
+      this.pastActivitiesCount = 0;
       this.currentActivitiesCount = 0;
+      this.futureActivitiesCount = 0;
       this.$el.parentElement?.scrollTo({ top: 0 });
       this.autoScrolled = false;
     },
@@ -413,40 +456,51 @@ export default {
         return;
       }
 
-      const row = this.$el.querySelector('.js-list-item');
-      if (row && this.firstCurrentActivityIndex > -1) {
-        // scroll to somewhere mid-way of the current activities
-        const ROW_HEIGHT = row.getBoundingClientRect().height;
-
-        if (this.canAutoScroll() === false) {
-          return;
-        }
-
-        const scrollOffset =
-          this.currentActivitiesCount > 0 ? Math.floor(this.currentActivitiesCount / 2) : 0;
-        this.$el.parentElement?.scrollTo({
-          top: ROW_HEIGHT * (this.firstCurrentActivityIndex + scrollOffset),
-          behavior: 'smooth'
-        });
-        this.autoScrolled = false;
-      } else if (row && this.activityClosestToNowIndex > -1) {
-        // scroll to somewhere close to 'now'
-
-        const ROW_HEIGHT = row.getBoundingClientRect().height;
-
-        if (this.canAutoScroll() === false) {
-          return;
-        }
-
-        this.$el.parentElement.scrollTo({
-          top: ROW_HEIGHT * (this.activityClosestToNowIndex - 1),
-          behavior: 'smooth'
-        });
-        this.autoScrolled = false;
-      } else {
-        // scroll to the top
-        this.resetScroll();
+      if (this.canAutoScroll() === false) {
+        return;
       }
+
+      // See #7167 for scrolling algorithm
+      const scrollTop = this.calculateScrollOffset();
+
+      if (scrollTop === undefined) {
+        this.resetScroll();
+      } else {
+        this.$el.parentElement?.scrollTo({
+          top: scrollTop,
+          behavior: 'smooth'
+        });
+        this.autoScrolled = false;
+      }
+    },
+    calculateScrollOffset() {
+      let scrollTop;
+
+      //No scrolling necessary if no past events are present
+      if (this.pastActivitiesCount > 0) {
+        const row = this.$el.querySelector('.js-list-item');
+        const ROW_HEIGHT = row.getBoundingClientRect().height;
+
+        const maxViewableActivities =
+          Math.floor(this.$el.parentElement.getBoundingClientRect().height / ROW_HEIGHT) - 1;
+
+        const currentAndFutureActivities = this.currentActivitiesCount + this.futureActivitiesCount;
+
+        //If there is more viewable area than all current and future activities combined, then show some past events
+        const numberOfPastEventsToShow = maxViewableActivities - currentAndFutureActivities;
+        if (numberOfPastEventsToShow > 0) {
+          //some past events can be shown - get that scroll index
+          if (this.pastActivitiesCount > numberOfPastEventsToShow) {
+            scrollTop =
+              ROW_HEIGHT * (this.firstCurrentOrFutureActivityIndex + numberOfPastEventsToShow);
+          }
+        } else {
+          // only show current and future events
+          scrollTop = ROW_HEIGHT * this.firstCurrentOrFutureActivityIndex;
+        }
+      }
+
+      return scrollTop;
     },
     deferAutoScroll() {
       //if this is not a user-triggered event, don't defer auto scrolling
@@ -488,6 +542,29 @@ export default {
     setEditState(isEditing) {
       this.isEditing = isEditing;
       this.setViewFromConfig(this.domainObject.configuration);
+    },
+    setSelectionForActivity(activity, element) {
+      const multiSelect = false;
+
+      this.openmct.selection.select(
+        [
+          {
+            element: element,
+            context: {
+              type: 'activity',
+              activity: activity
+            }
+          },
+          {
+            element: this.openmct.layout.$refs.browseObject.$el,
+            context: {
+              item: this.domainObject,
+              supportsMultiSelect: false
+            }
+          }
+        ],
+        multiSelect
+      );
     }
   }
 };
