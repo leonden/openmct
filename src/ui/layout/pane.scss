@@ -32,12 +32,6 @@
   opacity: 1;
   pointer-events: inherit;
 
-  &__handle,
-  &__label {
-    // __handle and __label don't appear in mobile
-    display: none;
-  }
-
   &__header {
     display: flex;
     align-items: center;
@@ -82,6 +76,10 @@
     padding-top: $interiorMargin;
     padding-bottom: $interiorMargin;
     min-height: 30px; // For Recents holder
+
+    body.mobile & {
+      max-height: 50vh;
+    }
 
     &.l-pane--collapsed {
       padding-top: 0 !important;
@@ -329,4 +327,35 @@
       }
     }
   } // Ends .body.desktop
+  
+  body.mobile & { // Mobile Tree 
+    &__label{
+      @include ellipsize();
+      @include userSelectNone();
+      color: $splitterBtnLabelColorFg;
+      display: block;
+      text-transform: uppercase;
+      flex: 1 1 auto;
+    }
+    &__handle {
+      background-color: $colorSplitterBg;
+      display: block;
+      position: absolute;
+      @include transition(background-color, $transOutTime);
+
+      &:before {
+        // Extended hit area
+        content: '';
+        display: block;
+        position: absolute;
+        z-index: -1;
+      }
+    }
+    &--collapsed {
+      .l-shell__reset-tree-button, .l-shell__sync-tree-button {
+        display: none;
+      
+      }
+    }
+  }
 } // Ends .l-pane
