@@ -29,9 +29,9 @@
 
 .c-form {
   color: $colorFormText;
-  display: flex;
-  flex-direction: column;
-  flex: 1 1 auto;
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 1 auto !important;
   overflow: hidden;
 
   > * + * {

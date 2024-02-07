@@ -329,6 +329,13 @@
   } // Ends .body.desktop
   
   body.mobile & { // Mobile Tree 
+    &__recent-objects-splitter { // Static splitter for Recent Objects in MOBILE ONLY.
+      background-color: $colorSplitterBg;
+      height: $splitterHandleD;
+      left: 0;
+      right: 0;
+      top: 4px;
+    }
     &__label{
       @include ellipsize();
       @include userSelectNone();
@@ -342,14 +349,6 @@
       display: block;
       position: absolute;
       @include transition(background-color, $transOutTime);
-
-      &:before {
-        // Extended hit area
-        content: '';
-        display: block;
-        position: absolute;
-        z-index: -1;
-      }
     }
     &--collapsed {
       .l-shell__reset-tree-button, .l-shell__sync-tree-button {

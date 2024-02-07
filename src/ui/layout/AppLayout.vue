@@ -105,6 +105,7 @@
               class="l-shell__tree"
             />
           </pane>
+          <div class="l-pane__recent-objects-splitter"></div>
           <pane handle="before" label="Recently Viewed" :persist-position="true">
             <RecentObjectsList
               ref="recentObjectsList"
